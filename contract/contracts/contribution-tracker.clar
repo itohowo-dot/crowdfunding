@@ -120,3 +120,61 @@
         )
     )
 )
+
+;; Read-only functions
+
+(define-read-only (get-contribution-details (campaign-id uint) (contributor principal))
+    (map-get? contribution-details { campaign-id: campaign-id, contributor: contributor })
+)
+
+(define-read-only (get-campaign-contribution-summary (campaign-id uint))
+    (map-get? campaign-contributions campaign-id)
+)
+
+(define-read-only (get-contribution-transaction (campaign-id uint) (contributor principal) (tx-index uint))
+    (map-get? contribution-transactions { 
+        campaign-id: campaign-id, 
+        contributor: contributor, 
+        tx-index: tx-index 
+    })
+)
+
+(define-read-only (get-contributor-stats (contributor principal))
+    (default-to 
+        { total-contributed: u0, campaigns-backed: u0, successful-campaigns: u0, refunds-received: u0 }
+        (map-get? contributor-stats contributor)
+    )
+)
+
+(define-read-only (get-reward-tier (campaign-id uint) (tier uint))
+    (map-get? campaign-reward-tiers { campaign-id: campaign-id, tier: tier })
+)
+
+(define-read-only (get-refund-claim (campaign-id uint) (contributor principal))
+    (map-get? refund-claims { campaign-id: campaign-id, contributor: contributor })
+)
+
+(define-read-only (get-platform-stats)
+    (ok {
+        total-contributions: (var-get total-platform-contributions),
+        total-backers: (var-get total-platform-backers)
+    })
+)
+
+(define-read-only (get-contributor-tier (campaign-id uint) (contributor principal))
+    (match (get-contribution-details campaign-id contributor)
+        details (ok (get reward-tier details))
+        ERR-NO-CONTRIBUTION
+    )
+)
+
+(define-read-only (is-top-contributor (campaign-id uint) (contributor principal))
+    (match (get-campaign-contribution-summary campaign-id)
+        summary 
+            (match (get largest-contributor summary)
+                top-contributor (ok (is-eq contributor top-contributor))
+                (ok false)
+            )
+        (ok false)
+    )
+)
