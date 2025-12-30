@@ -55,3 +55,58 @@
     { campaign-id: uint, contributor: principal }
     { amount: uint, timestamp: uint }
 )
+
+(define-map total-contributions
+    uint
+    { count: uint, total: uint }
+)
+
+;; Private functions
+
+(define-private (is-campaign-active (campaign-id uint))
+    (let ((campaign (unwrap! (map-get? campaigns campaign-id) false)))
+        (and 
+            (is-eq (get status campaign) STATUS-ACTIVE)
+            (< stacks-block-height (get deadline campaign))
+        )
+    )
+)
+
+(define-private (is-campaign-ended (campaign-id uint))
+    (let ((campaign (unwrap! (map-get? campaigns campaign-id) false)))
+        (>= stacks-block-height (get deadline campaign))
+    )
+)
+
+(define-private (has-goal-met (campaign-id uint))
+    (let ((campaign (unwrap! (map-get? campaigns campaign-id) false)))
+        (>= (get raised campaign) (get goal campaign))
+    )
+)
+
+(define-private (update-campaign-status (campaign-id uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign-id) false))
+    )
+        (if (and (is-campaign-ended campaign-id) (is-eq (get status campaign) STATUS-ACTIVE))
+            (begin
+                (if (has-goal-met campaign-id)
+                    (map-set campaigns campaign-id (merge campaign { status: STATUS-SUCCESSFUL }))
+                    (map-set campaigns campaign-id (merge campaign { status: STATUS-FAILED }))
+                )
+                true
+            )
+            true
+        )
+    )
+)
+
+;; Read-only functions
+
+(define-read-only (get-campaign (campaign-id uint))
+    (map-get? campaigns campaign-id)
+)
+
+(define-read-only (get-campaign-metadata (campaign-id uint))
+    (map-get? campaign-metadata campaign-id)
+)
