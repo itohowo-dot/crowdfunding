@@ -215,3 +215,52 @@
             (map-get? campaign-contributions campaign-id)
         ))
     )
+
+    ;; Validate
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+        
+        ;; Update or create contribution details
+        (match existing-details
+            details 
+                (let (
+                    (new-total (+ (get total-amount details) amount))
+                    (new-count (+ (get contribution-count details) u1))
+                    (tier (calculate-tier new-total campaign-id))
+                )
+                    (map-set contribution-details 
+                        { campaign-id: campaign-id, contributor: contributor }
+                        (merge details {
+                            total-amount: new-total,
+                            contribution-count: new-count,
+                            last-contribution: stacks-block-height,
+                            reward-tier: tier
+                        })
+                    )
+                    ;; Store transaction
+                    (map-set contribution-transactions
+                        { campaign-id: campaign-id, contributor: contributor, tx-index: new-count }
+                        { amount: amount, timestamp: stacks-block-height, block: stacks-block-height }
+                    )
+                )
+            (begin
+                ;; New contributor
+                (map-set contribution-details 
+                    { campaign-id: campaign-id, contributor: contributor }
+                    {
+                        total-amount: amount,
+                        contribution-count: u1,
+                        first-contribution: stacks-block-height,
+                        last-contribution: stacks-block-height,
+                        refunded: false,
+                        reward-tier: (calculate-tier amount campaign-id)
+                    }
+                )
+                ;; Store first transaction
+                (map-set contribution-transactions
+                    { campaign-id: campaign-id, contributor: contributor, tx-index: u1 }
+                    { amount: amount, timestamp: stacks-block-height, block: stacks-block-height }
+                )
+                ;; Increment platform backers for new contributor
+                (var-set total-platform-backers (+ (var-get total-platform-backers) u1))
+            )
+        )
