@@ -286,3 +286,64 @@
         (ok true)
     )
 )
+
+(define-public (refund (campaign-id uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+        (contribution (unwrap! (get-contribution campaign-id tx-sender) ERR-NO-CONTRIBUTION))
+        (amount (get amount contribution))
+    )
+        ;; Validate
+        (asserts! (is-campaign-ended campaign-id) ERR-CAMPAIGN-ACTIVE)
+        (asserts! (not (has-goal-met campaign-id)) ERR-GOAL-MET)
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+        
+        ;; Update status if needed
+        (update-campaign-status campaign-id)
+        
+        ;; Transfer refund to contributor
+        (try! (as-contract (stx-transfer? amount tx-sender tx-sender)))
+        
+        ;; Remove contribution record
+        (map-delete contributions { campaign-id: campaign-id, contributor: tx-sender })
+        
+        ;; Update campaign raised amount
+        (map-set campaigns campaign-id 
+            (merge campaign { raised: (- (get raised campaign) amount) })
+        )
+        
+        (ok amount)
+    )
+)
+
+(define-public (cancel-campaign (campaign-id uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator campaign)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (get status campaign) STATUS-ACTIVE) ERR-CAMPAIGN-ENDED)
+        
+        ;; Update status to cancelled
+        (map-set campaigns campaign-id (merge campaign { status: STATUS-CANCELLED }))
+        
+        (ok true)
+    )
+)
+
+(define-public (extend-deadline (campaign-id uint) (additional-blocks uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+        (new-deadline (+ (get deadline campaign) additional-blocks))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator campaign)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (get status campaign) STATUS-ACTIVE) ERR-CAMPAIGN-ENDED)
+        (asserts! (> additional-blocks u0) ERR-INVALID-DEADLINE)
+        
+        ;; Update deadline
+        (map-set campaigns campaign-id (merge campaign { deadline: new-deadline }))
+        
+        (ok new-deadline)
+    )
+)
