@@ -278,3 +278,76 @@
         (ok milestone-id)
     )
 )
+
+(define-public (start-milestone-voting (campaign-id uint) (milestone-id uint) (voting-duration uint))
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator milestone)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (get status milestone) STATUS-PENDING) ERR-INVALID-MILESTONE)
+        (asserts! (> voting-duration u0) ERR-INVALID-VOTING-PERIOD)
+        
+        ;; Initialize voting
+        (map-set milestone-votes 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            {
+                yes-votes: u0,
+                no-votes: u0,
+                total-voters: u0,
+                total-voting-power: u0,
+                voting-start: stacks-block-height,
+                voting-end: (+ stacks-block-height voting-duration),
+                approved: false
+            }
+        )
+        
+        ;; Update milestone status
+        (map-set milestones 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            (merge milestone { 
+                status: STATUS-VOTING,
+                voting-deadline: (+ stacks-block-height voting-duration)
+            })
+        )
+        
+        (ok true)
+    )
+)
+
+(define-public (vote-on-milestone 
+    (campaign-id uint) 
+    (milestone-id uint) 
+    (vote uint)
+    (contribution-amount uint)
+)
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+        (vote-data (unwrap! (get-milestone-votes campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+        (voting-power (calculate-voting-power contribution-amount))
+    )
+        ;; Validate
+        (asserts! (or (is-eq vote VOTE-YES) (is-eq vote VOTE-NO)) ERR-INVALID-MILESTONE)
+        (asserts! (is-eq (get status milestone) STATUS-VOTING) ERR-VOTING-ENDED)
+        (asserts! (not (has-voting-ended campaign-id milestone-id)) ERR-VOTING-ENDED)
+        (asserts! (not (has-voted campaign-id milestone-id tx-sender)) ERR-ALREADY-VOTED)
+        (asserts! (> contribution-amount u0) ERR-NOT-BACKER)
+        
+        ;; Record vote
+        (map-set voter-records 
+            { campaign-id: campaign-id, milestone-id: milestone-id, voter: tx-sender }
+            {
+                vote: vote,
+                voting-power: voting-power,
+                voted-at: stacks-block-height
+            }
+        )
+        
+        ;; Update voting power tracking
+        (map-set campaign-voting-power
+            { campaign-id: campaign-id, backer: tx-sender }
+            {
+                contribution-amount: contribution-amount,
+                voting-power: voting-power
+            }
+        )
