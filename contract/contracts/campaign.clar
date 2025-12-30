@@ -110,3 +110,53 @@
 (define-read-only (get-campaign-metadata (campaign-id uint))
     (map-get? campaign-metadata campaign-id)
 )
+
+(define-read-only (get-contribution (campaign-id uint) (contributor principal))
+    (map-get? contributions { campaign-id: campaign-id, contributor: contributor })
+)
+
+(define-read-only (get-total-contributions (campaign-id uint))
+    (default-to { count: u0, total: u0 } (map-get? total-contributions campaign-id))
+)
+
+(define-read-only (get-campaign-nonce)
+    (var-get campaign-nonce)
+)
+
+(define-read-only (is-campaign-creator (campaign-id uint) (user principal))
+    (match (map-get? campaigns campaign-id)
+        campaign (is-eq (get creator campaign) user)
+        false
+    )
+)
+
+(define-read-only (get-campaign-status (campaign-id uint))
+    (match (map-get? campaigns campaign-id)
+        campaign (ok (get status campaign))
+        ERR-CAMPAIGN-NOT-FOUND
+    )
+)
+
+(define-read-only (get-funding-progress (campaign-id uint))
+    (match (map-get? campaigns campaign-id)
+        campaign 
+            (ok {
+                raised: (get raised campaign),
+                goal: (get goal campaign),
+                percentage: (/ (* (get raised campaign) u100) (get goal campaign)),
+                backers: (get count (get-total-contributions campaign-id))
+            })
+        ERR-CAMPAIGN-NOT-FOUND
+    )
+)
+
+(define-read-only (get-time-remaining (campaign-id uint))
+    (match (map-get? campaigns campaign-id)
+        campaign
+            (if (>= stacks-block-height (get deadline campaign))
+                (ok u0)
+                (ok (- (get deadline campaign) stacks-block-height))
+            )
+        ERR-CAMPAIGN-NOT-FOUND
+    )
+)
