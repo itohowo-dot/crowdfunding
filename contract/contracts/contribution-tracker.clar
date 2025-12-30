@@ -178,3 +178,40 @@
         (ok false)
     )
 )
+
+(define-read-only (get-contribution-history (campaign-id uint) (contributor principal) (limit uint))
+    (ok (list 
+        (get-contribution-transaction campaign-id contributor u1)
+        (get-contribution-transaction campaign-id contributor u2)
+        (get-contribution-transaction campaign-id contributor u3)
+        (get-contribution-transaction campaign-id contributor u4)
+        (get-contribution-transaction campaign-id contributor u5)
+        (get-contribution-transaction campaign-id contributor u6)
+        (get-contribution-transaction campaign-id contributor u7)
+        (get-contribution-transaction campaign-id contributor u8)
+        (get-contribution-transaction campaign-id contributor u9)
+        (get-contribution-transaction campaign-id contributor u10)
+    ))
+)
+
+;; Public functions
+
+(define-public (record-contribution 
+    (campaign-id uint) 
+    (contributor principal) 
+    (amount uint)
+)
+    (let (
+        (existing-details (get-contribution-details campaign-id contributor))
+        (campaign-summary (default-to 
+            { 
+                total-raised: u0, 
+                contributor-count: u0, 
+                contribution-count: u0,
+                average-contribution: u0,
+                largest-contribution: u0,
+                largest-contributor: none
+            }
+            (map-get? campaign-contributions campaign-id)
+        ))
+    )
