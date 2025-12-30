@@ -58,3 +58,65 @@
         block: uint
     }
 )
+
+;; Contributor global stats
+(define-map contributor-stats
+    principal
+    {
+        total-contributed: uint,
+        campaigns-backed: uint,
+        successful-campaigns: uint,
+        refunds-received: uint
+    }
+)
+
+;; Reward tiers for campaigns
+(define-map campaign-reward-tiers
+    { campaign-id: uint, tier: uint }
+    {
+        min-amount: uint,
+        max-backers: uint,
+        current-backers: uint,
+        reward-description: (string-utf8 256)
+    }
+)
+
+;; Refund tracking
+(define-map refund-claims
+    { campaign-id: uint, contributor: principal }
+    {
+        amount: uint,
+        claimed-at: uint,
+        processed: bool
+    }
+)
+
+;; Private functions
+
+(define-private (calculate-tier (amount uint) (campaign-id uint))
+    (if (>= amount u10000000000) ;; 10,000 STX
+        TIER-PLATINUM
+        (if (>= amount u1000000000) ;; 1,000 STX
+            TIER-GOLD
+            (if (>= amount u100000000) ;; 100 STX
+                TIER-SILVER
+                TIER-BRONZE
+            )
+        )
+    )
+)
+
+(define-private (update-contributor-global-stats (contributor principal) (amount uint))
+    (let (
+        (stats (default-to 
+            { total-contributed: u0, campaigns-backed: u0, successful-campaigns: u0, refunds-received: u0 }
+            (map-get? contributor-stats contributor)
+        ))
+    )
+        (map-set contributor-stats contributor
+            (merge stats {
+                total-contributed: (+ (get total-contributed stats) amount)
+            })
+        )
+    )
+)
