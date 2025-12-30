@@ -221,3 +221,60 @@
         ERR-CAMPAIGN-NOT-FOUND
     )
 )
+
+;; Public functions
+
+(define-public (initialize-milestone-campaign (campaign-id uint))
+    (begin
+        (map-set campaign-milestone-config campaign-id {
+            total-milestones: u0,
+            completed-milestones: u0,
+            total-allocated: u0,
+            total-released: u0,
+            milestone-enabled: true
+        })
+        (ok true)
+    )
+)
+
+(define-public (add-milestone 
+    (campaign-id uint)
+    (title (string-ascii 100))
+    (description (string-utf8 500))
+    (amount uint)
+    (voting-duration uint)
+)
+    (let (
+        (config (unwrap! (get-campaign-milestone-config campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+        (milestone-id (+ (get total-milestones config) u1))
+    )
+        ;; Validate
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+        (asserts! (> voting-duration u0) ERR-INVALID-VOTING-PERIOD)
+        
+        ;; Create milestone
+        (map-set milestones 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            {
+                title: title,
+                description: description,
+                amount: amount,
+                status: STATUS-PENDING,
+                created-at: stacks-block-height,
+                voting-deadline: (+ stacks-block-height voting-duration),
+                released-at: none,
+                creator: tx-sender
+            }
+        )
+        
+        ;; Update config
+        (map-set campaign-milestone-config campaign-id
+            (merge config {
+                total-milestones: milestone-id,
+                total-allocated: (+ (get total-allocated config) amount)
+            })
+        )
+        
+        (ok milestone-id)
+    )
+)
