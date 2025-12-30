@@ -212,3 +212,77 @@
         (ok campaign-id)
     )
 )
+
+(define-public (contribute (campaign-id uint) (amount uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+        (existing-contribution (get-contribution campaign-id tx-sender))
+        (contribution-stats (get-total-contributions campaign-id))
+    )
+        ;; Validate
+        (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+        (asserts! (is-campaign-active campaign-id) ERR-CAMPAIGN-ENDED)
+        
+        ;; Transfer STX to contract
+        (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+        
+        ;; Update or create contribution record
+        (match existing-contribution
+            contrib 
+                (map-set contributions 
+                    { campaign-id: campaign-id, contributor: tx-sender }
+                    { 
+                        amount: (+ (get amount contrib) amount),
+                        timestamp: stacks-block-height
+                    }
+                )
+            (begin
+                (map-set contributions 
+                    { campaign-id: campaign-id, contributor: tx-sender }
+                    { amount: amount, timestamp: stacks-block-height }
+                )
+                ;; Increment contributor count for new contributors
+                (map-set total-contributions campaign-id 
+                    (merge contribution-stats { count: (+ (get count contribution-stats) u1) })
+                )
+            )
+        )
+        
+        ;; Update campaign raised amount and total contributions
+        (map-set campaigns campaign-id 
+            (merge campaign { raised: (+ (get raised campaign) amount) })
+        )
+        (map-set total-contributions campaign-id 
+            (merge contribution-stats { total: (+ (get total contribution-stats) amount) })
+        )
+        
+        (ok true)
+    )
+)
+
+(define-public (claim-funds (campaign-id uint))
+    (let (
+        (campaign (unwrap! (map-get? campaigns campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator campaign)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-campaign-ended campaign-id) ERR-CAMPAIGN-ACTIVE)
+        (asserts! (has-goal-met campaign-id) ERR-GOAL-NOT-MET)
+        (asserts! (not (get claimed campaign)) ERR-ALREADY-CLAIMED)
+        (asserts! (not (is-eq (get status campaign) STATUS-CANCELLED)) ERR-CAMPAIGN-CANCELLED)
+        
+        ;; Update status if needed
+        (update-campaign-status campaign-id)
+        
+        ;; Transfer funds to creator (only if not milestone-enabled)
+        (if (not (get milestone-enabled campaign))
+            (try! (as-contract (stx-transfer? (get raised campaign) tx-sender (get creator campaign))))
+            true
+        )
+        
+        ;; Mark as claimed
+        (map-set campaigns campaign-id (merge campaign { claimed: true }))
+        
+        (ok true)
+    )
+)
