@@ -160,3 +160,55 @@
         ERR-CAMPAIGN-NOT-FOUND
     )
 )
+
+;; Public functions
+
+(define-public (create-campaign 
+    (title (string-ascii 100))
+    (description (string-utf8 500))
+    (goal uint)
+    (duration uint)
+    (image-url (string-utf8 256))
+    (category (string-ascii 50))
+    (video-url (optional (string-utf8 256)))
+    (milestone-enabled bool)
+)
+    (let (
+        (campaign-id (+ (var-get campaign-nonce) u1))
+        (deadline (+ stacks-block-height duration))
+    )
+        ;; Validate inputs
+        (asserts! (> goal u0) ERR-INVALID-GOAL)
+        (asserts! (> duration u0) ERR-INVALID-DEADLINE)
+        (asserts! (< duration u52560) ERR-INVALID-DEADLINE) ;; Max 1 year (assuming ~10 min blocks)
+        
+        ;; Create campaign
+        (map-set campaigns campaign-id {
+            creator: tx-sender,
+            title: title,
+            description: description,
+            goal: goal,
+            raised: u0,
+            deadline: deadline,
+            status: STATUS-ACTIVE,
+            created-at: stacks-block-height,
+            claimed: false,
+            milestone-enabled: milestone-enabled
+        })
+        
+        ;; Store metadata
+        (map-set campaign-metadata campaign-id {
+            image-url: image-url,
+            category: category,
+            video-url: video-url
+        })
+        
+        ;; Initialize contribution tracking
+        (map-set total-contributions campaign-id { count: u0, total: u0 })
+        
+        ;; Update nonce
+        (var-set campaign-nonce campaign-id)
+        
+        (ok campaign-id)
+    )
+)
