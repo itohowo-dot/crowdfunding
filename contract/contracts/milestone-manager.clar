@@ -351,3 +351,81 @@
                 voting-power: voting-power
             }
         )
+
+        ;; Update vote tallies
+        (map-set milestone-votes 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            (merge vote-data {
+                yes-votes: (if (is-eq vote VOTE-YES) 
+                    (+ (get yes-votes vote-data) voting-power) 
+                    (get yes-votes vote-data)
+                ),
+                no-votes: (if (is-eq vote VOTE-NO) 
+                    (+ (get no-votes vote-data) voting-power) 
+                    (get no-votes vote-data)
+                ),
+                total-voters: (+ (get total-voters vote-data) u1),
+                total-voting-power: (+ (get total-voting-power vote-data) voting-power)
+            })
+        )
+        
+        (ok true)
+    )
+)
+
+(define-public (finalize-milestone-vote (campaign-id uint) (milestone-id uint))
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+        (vote-data (unwrap! (get-milestone-votes campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq (get status milestone) STATUS-VOTING) ERR-INVALID-MILESTONE)
+        (asserts! (has-voting-ended campaign-id milestone-id) ERR-VOTING-ACTIVE)
+        
+        ;; Determine approval
+        (let (
+            (approved (is-milestone-approved campaign-id milestone-id))
+            (new-status (if approved STATUS-APPROVED STATUS-REJECTED))
+        )
+            ;; Update vote data
+            (map-set milestone-votes 
+                { campaign-id: campaign-id, milestone-id: milestone-id }
+                (merge vote-data { approved: approved })
+            )
+            
+            ;; Update milestone status
+            (map-set milestones 
+                { campaign-id: campaign-id, milestone-id: milestone-id }
+                (merge milestone { status: new-status })
+            )
+            
+            (ok approved)
+        )
+    )
+)
+
+(define-public (submit-milestone-deliverables 
+    (campaign-id uint)
+    (milestone-id uint)
+    (proof-url (string-utf8 256))
+    (notes (string-utf8 500))
+)
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator milestone)) ERR-NOT-AUTHORIZED)
+        
+        ;; Store deliverables
+        (map-set milestone-deliverables 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            {
+                proof-url: proof-url,
+                submitted-at: stacks-block-height,
+                notes: notes
+            }
+        )
+        
+        (ok true)
+    )
+)
