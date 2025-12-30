@@ -335,3 +335,57 @@
         (ok true)
     )
 )
+
+(define-public (add-reward-tier 
+    (campaign-id uint)
+    (tier uint)
+    (min-amount uint)
+    (max-backers uint)
+    (reward-description (string-utf8 256))
+)
+    (begin
+        ;; Validate tier
+        (asserts! (<= tier TIER-PLATINUM) ERR-INVALID-TIER)
+        (asserts! (>= tier TIER-BRONZE) ERR-INVALID-TIER)
+        (asserts! (> min-amount u0) ERR-INVALID-AMOUNT)
+        
+        ;; Create reward tier
+        (map-set campaign-reward-tiers 
+            { campaign-id: campaign-id, tier: tier }
+            {
+                min-amount: min-amount,
+                max-backers: max-backers,
+                current-backers: u0,
+                reward-description: reward-description
+            }
+        )
+        
+        (ok true)
+    )
+)
+
+(define-public (increment-successful-campaigns (contributor principal))
+    (let (
+        (stats (get-contributor-stats contributor))
+    )
+        (map-set contributor-stats contributor
+            (merge stats {
+                successful-campaigns: (+ (get successful-campaigns stats) u1)
+            })
+        )
+        (ok true)
+    )
+)
+
+(define-public (increment-campaigns-backed (contributor principal))
+    (let (
+        (stats (get-contributor-stats contributor))
+    )
+        (map-set contributor-stats contributor
+            (merge stats {
+                campaigns-backed: (+ (get campaigns-backed stats) u1)
+            })
+        )
+        (ok true)
+    )
+)
