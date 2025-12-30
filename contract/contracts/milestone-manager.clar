@@ -152,3 +152,72 @@
 (define-read-only (get-milestone (campaign-id uint) (milestone-id uint))
     (map-get? milestones { campaign-id: campaign-id, milestone-id: milestone-id })
 )
+
+(define-read-only (get-milestone-votes (campaign-id uint) (milestone-id uint))
+    (map-get? milestone-votes { campaign-id: campaign-id, milestone-id: milestone-id })
+)
+
+(define-read-only (get-voter-record (campaign-id uint) (milestone-id uint) (voter principal))
+    (map-get? voter-records { 
+        campaign-id: campaign-id, 
+        milestone-id: milestone-id, 
+        voter: voter 
+    })
+)
+
+(define-read-only (get-milestone-deliverables (campaign-id uint) (milestone-id uint))
+    (map-get? milestone-deliverables { campaign-id: campaign-id, milestone-id: milestone-id })
+)
+
+(define-read-only (get-voting-power (campaign-id uint) (backer principal))
+    (match (map-get? campaign-voting-power { campaign-id: campaign-id, backer: backer })
+        power-data (ok (get voting-power power-data))
+        (ok u0)
+    )
+)
+
+(define-read-only (get-milestone-status (campaign-id uint) (milestone-id uint))
+    (match (get-milestone campaign-id milestone-id)
+        milestone (ok (get status milestone))
+        ERR-MILESTONE-NOT-FOUND
+    )
+)
+
+(define-read-only (get-voting-results (campaign-id uint) (milestone-id uint))
+    (match (get-milestone-votes campaign-id milestone-id)
+        vote-data 
+            (ok {
+                yes-votes: (get yes-votes vote-data),
+                no-votes: (get no-votes vote-data),
+                total-voters: (get total-voters vote-data),
+                approval-percentage: (calculate-approval-percentage 
+                    (get yes-votes vote-data) 
+                    (get total-voting-power vote-data)
+                ),
+                approved: (get approved vote-data),
+                voting-ended: (has-voting-ended campaign-id milestone-id)
+            })
+        ERR-MILESTONE-NOT-FOUND
+    )
+)
+
+(define-read-only (has-voted (campaign-id uint) (milestone-id uint) (voter principal))
+    (is-some (get-voter-record campaign-id milestone-id voter))
+)
+
+(define-read-only (get-campaign-progress (campaign-id uint))
+    (match (get-campaign-milestone-config campaign-id)
+        config
+            (ok {
+                total-milestones: (get total-milestones config),
+                completed-milestones: (get completed-milestones config),
+                percentage-complete: (if (> (get total-milestones config) u0)
+                    (/ (* (get completed-milestones config) u100) (get total-milestones config))
+                    u0
+                ),
+                total-allocated: (get total-allocated config),
+                total-released: (get total-released config)
+            })
+        ERR-CAMPAIGN-NOT-FOUND
+    )
+)
