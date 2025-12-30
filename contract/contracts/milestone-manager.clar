@@ -351,7 +351,7 @@
                 voting-power: voting-power
             }
         )
-
+        
         ;; Update vote tallies
         (map-set milestone-votes 
             { campaign-id: campaign-id, milestone-id: milestone-id }
@@ -424,6 +424,91 @@
                 submitted-at: stacks-block-height,
                 notes: notes
             }
+        )
+        
+        (ok true)
+    )
+)
+
+(define-public (release-milestone-funds 
+    (campaign-id uint) 
+    (milestone-id uint)
+    (recipient principal)
+)
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+        (config (unwrap! (get-campaign-milestone-config campaign-id) ERR-CAMPAIGN-NOT-FOUND))
+        (amount (get amount milestone))
+    )
+        ;; Validate
+        (asserts! (is-eq (get status milestone) STATUS-APPROVED) ERR-MILESTONE-NOT-APPROVED)
+        (asserts! (>= (get total-allocated config) amount) ERR-INSUFFICIENT-FUNDS)
+        
+        ;; Transfer funds
+        (try! (as-contract (stx-transfer? amount tx-sender recipient)))
+        
+        ;; Update milestone
+        (map-set milestones 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            (merge milestone { 
+                status: STATUS-RELEASED,
+                released-at: (some stacks-block-height)
+            })
+        )
+        
+        ;; Update config
+        (map-set campaign-milestone-config campaign-id
+            (merge config {
+                completed-milestones: (+ (get completed-milestones config) u1),
+                total-released: (+ (get total-released config) amount)
+            })
+        )
+        
+        (ok amount)
+    )
+)
+
+(define-public (cancel-milestone (campaign-id uint) (milestone-id uint))
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator milestone)) ERR-NOT-AUTHORIZED)
+        (asserts! (or 
+            (is-eq (get status milestone) STATUS-PENDING)
+            (is-eq (get status milestone) STATUS-REJECTED)
+        ) ERR-INVALID-MILESTONE)
+        
+        ;; Update status
+        (map-set milestones 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            (merge milestone { status: STATUS-CANCELLED })
+        )
+        
+        (ok true)
+    )
+)
+
+(define-public (update-milestone 
+    (campaign-id uint)
+    (milestone-id uint)
+    (title (string-ascii 100))
+    (description (string-utf8 500))
+)
+    (let (
+        (milestone (unwrap! (get-milestone campaign-id milestone-id) ERR-MILESTONE-NOT-FOUND))
+    )
+        ;; Validate
+        (asserts! (is-eq tx-sender (get creator milestone)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (get status milestone) STATUS-PENDING) ERR-INVALID-MILESTONE)
+        
+        ;; Update milestone
+        (map-set milestones 
+            { campaign-id: campaign-id, milestone-id: milestone-id }
+            (merge milestone { 
+                title: title,
+                description: description
+            })
         )
         
         (ok true)
