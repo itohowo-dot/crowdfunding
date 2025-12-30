@@ -215,8 +215,7 @@
             (map-get? campaign-contributions campaign-id)
         ))
     )
-
-    ;; Validate
+        ;; Validate
         (asserts! (> amount u0) ERR-INVALID-AMOUNT)
         
         ;; Update or create contribution details
@@ -264,7 +263,7 @@
                 (var-set total-platform-backers (+ (var-get total-platform-backers) u1))
             )
         )
-
+        
         ;; Update campaign summary
         (let (
             (new-total-raised (+ (get total-raised campaign-summary) amount))
@@ -384,6 +383,34 @@
         (map-set contributor-stats contributor
             (merge stats {
                 campaigns-backed: (+ (get campaigns-backed stats) u1)
+            })
+        )
+        (ok true)
+    )
+)
+
+(define-public (get-contributions-by-campaign (campaign-id uint))
+    (ok (get-campaign-contribution-summary campaign-id))
+)
+
+(define-public (update-campaign-summary (campaign-id uint) (total-raised uint) (contributor-count uint))
+    (let (
+        (summary (default-to 
+            { 
+                total-raised: u0, 
+                contributor-count: u0, 
+                contribution-count: u0,
+                average-contribution: u0,
+                largest-contribution: u0,
+                largest-contributor: none
+            }
+            (map-get? campaign-contributions campaign-id)
+        ))
+    )
+        (map-set campaign-contributions campaign-id
+            (merge summary {
+                total-raised: total-raised,
+                contributor-count: contributor-count
             })
         )
         (ok true)
