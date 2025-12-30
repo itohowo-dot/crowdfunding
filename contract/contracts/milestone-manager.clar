@@ -76,3 +76,79 @@
         approved: bool
     }
 )
+
+;; Individual voter records
+(define-map voter-records
+    { campaign-id: uint, milestone-id: uint, voter: principal }
+    {
+        vote: uint,
+        voting-power: uint,
+        voted-at: uint
+    }
+)
+
+;; Milestone deliverables/proof
+(define-map milestone-deliverables
+    { campaign-id: uint, milestone-id: uint }
+    {
+        proof-url: (string-utf8 256),
+        submitted-at: uint,
+        notes: (string-utf8 500)
+    }
+)
+
+;; Campaign voting power tracking
+(define-map campaign-voting-power
+    { campaign-id: uint, backer: principal }
+    {
+        contribution-amount: uint,
+        voting-power: uint
+    }
+)
+
+;; Private functions
+
+(define-private (calculate-voting-power (contribution-amount uint))
+    ;; Simple linear voting power based on contribution
+    ;; Could be enhanced with quadratic voting or other mechanisms
+    contribution-amount
+)
+
+(define-private (has-voting-ended (campaign-id uint) (milestone-id uint))
+    (match (map-get? milestone-votes { campaign-id: campaign-id, milestone-id: milestone-id })
+        vote-data (>= stacks-block-height (get voting-end vote-data))
+        true
+    )
+)
+
+(define-private (calculate-approval-percentage (yes-votes uint) (total-voting-power uint))
+    (if (is-eq total-voting-power u0)
+        u0
+        (/ (* yes-votes u100) total-voting-power)
+    )
+)
+
+(define-private (is-milestone-approved (campaign-id uint) (milestone-id uint))
+    (match (map-get? milestone-votes { campaign-id: campaign-id, milestone-id: milestone-id })
+        vote-data 
+            (let (
+                (approval-pct (calculate-approval-percentage 
+                    (get yes-votes vote-data) 
+                    (get total-voting-power vote-data)
+                ))
+            )
+                (>= approval-pct MIN-APPROVAL-PERCENTAGE)
+            )
+        false
+    )
+)
+
+;; Read-only functions
+
+(define-read-only (get-campaign-milestone-config (campaign-id uint))
+    (map-get? campaign-milestone-config campaign-id)
+)
+
+(define-read-only (get-milestone (campaign-id uint) (milestone-id uint))
+    (map-get? milestones { campaign-id: campaign-id, milestone-id: milestone-id })
+)
