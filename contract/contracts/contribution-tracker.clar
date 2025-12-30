@@ -264,3 +264,74 @@
                 (var-set total-platform-backers (+ (var-get total-platform-backers) u1))
             )
         )
+
+        ;; Update campaign summary
+        (let (
+            (new-total-raised (+ (get total-raised campaign-summary) amount))
+            (new-contribution-count (+ (get contribution-count campaign-summary) u1))
+            (new-contributor-count 
+                (if (is-none existing-details)
+                    (+ (get contributor-count campaign-summary) u1)
+                    (get contributor-count campaign-summary)
+                )
+            )
+            (is-largest (> amount (get largest-contribution campaign-summary)))
+        )
+            (map-set campaign-contributions campaign-id {
+                total-raised: new-total-raised,
+                contributor-count: new-contributor-count,
+                contribution-count: new-contribution-count,
+                average-contribution: (/ new-total-raised new-contribution-count),
+                largest-contribution: (if is-largest amount (get largest-contribution campaign-summary)),
+                largest-contributor: (if is-largest (some contributor) (get largest-contributor campaign-summary))
+            })
+        )
+        
+        ;; Update contributor global stats
+        (update-contributor-global-stats contributor amount)
+        
+        ;; Update platform stats
+        (var-set total-platform-contributions (+ (var-get total-platform-contributions) amount))
+        
+        (ok true)
+    )
+)
+
+(define-public (claim-refund (campaign-id uint) (contributor principal) (amount uint))
+    (let (
+        (details (unwrap! (get-contribution-details campaign-id contributor) ERR-NO-CONTRIBUTION))
+    )
+        ;; Validate
+        (asserts! (not (get refunded details)) ERR-ALREADY-REFUNDED)
+        (asserts! (>= (get total-amount details) amount) ERR-INVALID-AMOUNT)
+        
+        ;; Record refund claim
+        (map-set refund-claims 
+            { campaign-id: campaign-id, contributor: contributor }
+            {
+                amount: amount,
+                claimed-at: stacks-block-height,
+                processed: true
+            }
+        )
+        
+        ;; Update contribution details
+        (map-set contribution-details 
+            { campaign-id: campaign-id, contributor: contributor }
+            (merge details { refunded: true })
+        )
+        
+        ;; Update contributor stats
+        (let (
+            (stats (get-contributor-stats contributor))
+        )
+            (map-set contributor-stats contributor
+                (merge stats {
+                    refunds-received: (+ (get refunds-received stats) amount)
+                })
+            )
+        )
+        
+        (ok true)
+    )
+)
