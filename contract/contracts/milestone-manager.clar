@@ -1,0 +1,78 @@
+;; Milestone Manager Smart Contract
+;; Manages milestone-based fund releases with backer governance voting
+
+;; Error codes
+(define-constant ERR-NOT-AUTHORIZED (err u300))
+(define-constant ERR-CAMPAIGN-NOT-FOUND (err u301))
+(define-constant ERR-MILESTONE-NOT-FOUND (err u302))
+(define-constant ERR-INVALID-AMOUNT (err u303))
+(define-constant ERR-INVALID-MILESTONE (err u304))
+(define-constant ERR-MILESTONE-ALREADY-RELEASED (err u305))
+(define-constant ERR-MILESTONE-NOT-APPROVED (err u306))
+(define-constant ERR-VOTING-ENDED (err u307))
+(define-constant ERR-ALREADY-VOTED (err u308))
+(define-constant ERR-NOT-BACKER (err u309))
+(define-constant ERR-INSUFFICIENT-FUNDS (err u310))
+(define-constant ERR-INVALID-VOTING-PERIOD (err u311))
+(define-constant ERR-VOTING-ACTIVE (err u312))
+(define-constant ERR-CAMPAIGN-NOT-SUCCESSFUL (err u313))
+(define-constant ERR-TRANSFER-FAILED (err u314))
+
+;; Milestone status constants
+(define-constant STATUS-PENDING u1)
+(define-constant STATUS-VOTING u2)
+(define-constant STATUS-APPROVED u3)
+(define-constant STATUS-REJECTED u4)
+(define-constant STATUS-RELEASED u5)
+(define-constant STATUS-CANCELLED u6)
+
+;; Voting constants
+(define-constant VOTE-YES u1)
+(define-constant VOTE-NO u2)
+(define-constant MIN-APPROVAL-PERCENTAGE u51) ;; 51% approval required
+
+;; Data variables
+(define-data-var milestone-nonce uint u0)
+
+;; Data maps
+
+;; Campaign milestone configuration
+(define-map campaign-milestone-config
+    uint
+    {
+        total-milestones: uint,
+        completed-milestones: uint,
+        total-allocated: uint,
+        total-released: uint,
+        milestone-enabled: bool
+    }
+)
+
+;; Milestone details
+(define-map milestones
+    { campaign-id: uint, milestone-id: uint }
+    {
+        title: (string-ascii 100),
+        description: (string-utf8 500),
+        amount: uint,
+        status: uint,
+        created-at: uint,
+        voting-deadline: uint,
+        released-at: (optional uint),
+        creator: principal
+    }
+)
+
+;; Voting records
+(define-map milestone-votes
+    { campaign-id: uint, milestone-id: uint }
+    {
+        yes-votes: uint,
+        no-votes: uint,
+        total-voters: uint,
+        total-voting-power: uint,
+        voting-start: uint,
+        voting-end: uint,
+        approved: bool
+    }
+)
